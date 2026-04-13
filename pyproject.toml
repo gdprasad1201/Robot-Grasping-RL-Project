@@ -1,0 +1,20 @@
+[project]
+name = "final-project"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "gym>=0.26.1",
+    "gym-notices>=0.1.0",
+    "gymnasium>=1.2.3",
+    "numpy>=1.26.4",
+    "pandas>=2.3.3",
+    "pybullet>=3.2.7",
+    "setuptools>=80.9.0",
+    "shimmy>=2.0.0",
+    "stable-baselines3>=2.7.1",
+]
+
+[tool.uv]
+# PyBullet ships old zlib; Xcode 16+ defines TARGET_OS_MAC and breaks the build (bullet3#4753).
+# Clang-only flag — remove this block on Linux if your C compiler rejects it.
+extra-build-variables = { pybullet = { CFLAGS = "-fno-define-target-os-macros", CXXFLAGS = "-fno-define-target-os-macros" } }
