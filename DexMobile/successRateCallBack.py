@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from stable_baselines3.common.callbacks import BaseCallback
 import gym
 import numpy as np
+import numpy as np
 import pandas as pd
 
 from stable_baselines3.common import base_class, logger  # pytype: disable=pyi-error
