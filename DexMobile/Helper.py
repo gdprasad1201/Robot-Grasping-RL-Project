@@ -6,6 +6,14 @@ import random
 import numpy as np
 import pandas as pd
 
+from warnings import filterwarnings
+filterwarnings("ignore")
+
+ASSIGNED_TASK_ID = 7
+USE_ASSIGNED_TASK_ONLY = True
+DEXMOBILE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 class Helper:
 
     def __init__(self):
@@ -200,7 +208,7 @@ class Helper:
         i = self.select_task()
         #print(i)
         #i = 9
-        csvName = "topo/" + "pos_all.csv"
+        csvName = os.path.join(DEXMOBILE_DIR, "topo", "pos_all.csv")
         data = pd.read_csv(csvName)
         object_id = data.iloc[i]['Object ID']  # 0
         #object_id = 115
@@ -220,7 +228,10 @@ class Helper:
         return [object_id, trans, orientation, lower, upper, p_obj, q_obj, objectPath, grasp, affordance, task_id]
 
     def select_task(self):
-        file_path = 'log/inSiAd2.csv'
+        if USE_ASSIGNED_TASK_ONLY:
+            return ASSIGNED_TASK_ID
+
+        file_path = os.path.join(DEXMOBILE_DIR, "log", "inSiAd2.csv")
         # Check if file exists
         if not os.path.exists(file_path):
             return random.randint(0, 26)
@@ -339,5 +350,3 @@ class Helper:
             return 0
         else:
             return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
-

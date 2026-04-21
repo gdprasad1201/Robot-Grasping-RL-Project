@@ -5,6 +5,9 @@ import pybullet as p
 from Dualenv import Dualenv
 from Helper import Helper
 
+from warnings import filterwarnings
+filterwarnings("ignore")
+
 current = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent = os.path.dirname(os.path.dirname(current))
 os.sys.path.insert(0, parent)

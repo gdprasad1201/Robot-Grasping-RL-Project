@@ -10,6 +10,9 @@ import gym
 import pandas
 import numpy as np
 
+from warnings import filterwarnings
+filterwarnings("ignore")
+
 class Monitor(gym.Wrapper):
     """
     A monitor wrapper for Gym environments, it is used to know the episode reward, length, time and other data.
@@ -20,7 +23,7 @@ class Monitor(gym.Wrapper):
     :param reset_keywords: (tuple) extra keywords for the reset call, if extra parameters are needed at reset
     :param info_keywords: (tuple) extra information to log, from the information return of environment.step
     """
-    EXT = "inSiAd2.csv"
+    DEFAULT_EXT = os.environ.get("DEXMOBILE_MONITOR_FILE", "poPmAb25.csv")
     file_handler = None
 
     def __init__(self,
@@ -28,18 +31,20 @@ class Monitor(gym.Wrapper):
                  filename: Optional[str],
                  allow_early_resets: bool = True,
                  reset_keywords=(),
-                 info_keywords=()):
+                 info_keywords=(),
+                 log_extension: Optional[str] = None):
         super(Monitor, self).__init__(env=env)
         self.t_start = time.time()
+        self.log_extension = log_extension or Monitor.DEFAULT_EXT
         if filename is None:
             self.file_handler = None
             self.logger = None
         else:
-            if not filename.endswith(Monitor.EXT):
+            if not filename.endswith(self.log_extension):
                 if os.path.isdir(filename):
-                    filename = os.path.join(filename, Monitor.EXT)
+                    filename = os.path.join(filename, self.log_extension)
                 else:
-                    filename = filename + "." + Monitor.EXT
+                    filename = filename + "." + self.log_extension
             self.file_handler = open(filename, "wt")
             #self.file_handler.write('#%s\n' % json.dumps({"t_start": self.t_start,
             # 'env_id': env.spec and env.spec.id}))
@@ -187,7 +192,8 @@ def get_monitor_files(path: str) -> List[str]:
     :param path: (str) the logging folder
     :return: ([str]) the log files
     """
-    return glob(os.path.join(path, "*" + Monitor.EXT))
+    extension = os.environ.get("DEXMOBILE_MONITOR_FILE", Monitor.DEFAULT_EXT)
+    return glob(os.path.join(path, "*" + extension))
 
 
 

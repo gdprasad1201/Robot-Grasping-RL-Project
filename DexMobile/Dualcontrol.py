@@ -4,6 +4,9 @@ import time
 import pybullet as p
 from Helper import Helper
 
+from warnings import filterwarnings
+filterwarnings("ignore")
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -91,7 +94,7 @@ class Dualcontrol:
         if self.topology == "pPdAb25" or self.topology == "poPmAb25":
             j_88, j_92, j_105, j_100, j_81 = (finger_close_mid, finger_close_mid,
                                               finger_close_mid, finger_close_mid, thumb_close)
-        pose2 = p.getLinkState(self.dualUid, 90)[4]
+        #pose2 = p.getLinkState(self.dualUid, 90)[4]
         #print(pose2)
         ############################################# control arm ###################################################
         if move2pos_initial == 0:  # move to initial pos
@@ -200,7 +203,7 @@ class Dualcontrol:
                 self.finger_model_thumb(j_81)
                 self.move_finger_joint(78, self.grasp[6])
         #p.addUserDebugLine(self.pose1, pose2, [0, 0, 1], 5, 0)
-        self.pose1 = pose2
+        #self.pose1 = pose2
     ############################################# helper functions ################################################
 
     def move_finger_joint(self, joint_id, target_position):

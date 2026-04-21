@@ -1,63 +1,63 @@
-﻿from Dualenv import Dualenv
-from stable_baselines3 import PPO
-from typing import Callable
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+﻿import os
+
+from Dualenv import Dualenv
 from Monitor import Monitor
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from successRateCallBack import successRateCallBack
 
-################################################# Define Variables ##################################################
-def linear_schedule(initial_value: float) -> Callable[[float], float]:
-    """ Linear learning rate schedule.
-    :param initial_value: Initial learning rate.
-    :return: schedule that computes
-    current learning rate depending on remaining progress """
-
-    def func(progress_remaining: float) -> float:
-        """ Progress will decrease from 1 (beginning) to 0.
-        :param progress_remaining:
-        :return: current learning rate """
-        # result = progress_remaining * initial_value
-        if progress_remaining >= 0.6:
-            return initial_value * 1
-        if 0.6 > progress_remaining >= 0.3:
-            return initial_value * 0.9
-        else:
-            return initial_value * 0.8
-
-    return func
+from warnings import filterwarnings
+filterwarnings("ignore")
 
 
-n_envs = 1
-step = 1024
-timeStep = step * 5000  #
-orientation = 1  # 0 from side, 1 from above, 2 from above 1
-graspType = "inSiAd2"
-log_dir = "log"
-fileName = log_dir + "/episodeData"
-modelName = log_dir + "/" + graspType
-envName = log_dir + "/" + graspType + ".pkl"
+STEP_PER_EPISODE = 1024
+GRASP_TYPE = "poPmAb25"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "log")
+MODEL_DIR = os.path.join(BASE_DIR, "trained_model")
+MODEL_NAME = os.path.join(MODEL_DIR, GRASP_TYPE)
+ENV_NAME = os.path.join(MODEL_DIR, f"{GRASP_TYPE}.pkl")
+MONITOR_FILE = f"{GRASP_TYPE}.csv"
+TOTAL_TIMESTEPS = int(os.environ.get("DEXMOBILE_TOTAL_TIMESTEPS", 1_500_000))
 
-################################################# Training and Evaluation ############################################
-# create environment and custom callback
-env = Dualenv(renders=True, is_discrete=False, max_steps=step)
-env = Monitor(env, log_dir)
-env = DummyVecEnv([lambda: env])
-env = VecNormalize(env, norm_reward=True)  # when training norm_reward = True
-success = successRateCallBack(successRates=0.99, verbose=1, check_freq=step * 50, path=log_dir, n_eval_episodes=100)
-# load and train the model
-#model = PPO('MlpPolicy', env, verbose=1, tensorboard_log=log_dir, learning_rate=linear_schedule(3e-5), gamma=0.99,
-#            gae_lambda=0.95, clip_range=0.2, batch_size=64)
 
-# model = PPO('MlpPolicy', env, verbose=1, tensorboard_log=log_dir, learning_rate=1.6e-6, gamma=0.985,
-#             use_sde=False, sde_sample_freq=1, clip_range=0.2, batch_size=32)
-model = PPO('MlpPolicy', env, verbose=1, tensorboard_log=log_dir, learning_rate=3e-5, gamma=0.99,
-            clip_range=0.2, batch_size=32)
-model.learn(timeStep, callback=success)
-# save training info
-#episodeData = model.get_env().get_attr("evaluation")
-#episodeData = np.array(episodeData, dtype=object)
-#np.save(fileName, episodeData)
-# save model
-model.save(modelName)
-env.save(envName)
-env.close()
+def main():
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    os.environ["DEXMOBILE_MONITOR_FILE"] = MONITOR_FILE
+
+    env = Dualenv(renders=False, is_discrete=False, max_steps=STEP_PER_EPISODE)
+    env = Monitor(env, LOG_DIR, log_extension=MONITOR_FILE)
+    env = DummyVecEnv([lambda: env])
+    env = VecNormalize(env, norm_reward=True)
+
+    callback = successRateCallBack(
+        successRates=0.9,
+        verbose=1,
+        check_freq=STEP_PER_EPISODE * 20,
+        path=MODEL_DIR,
+        n_eval_episodes=50,
+        log_filename=MONITOR_FILE,
+        metrics_path=LOG_DIR,
+    )
+
+    model = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        tensorboard_log=LOG_DIR,
+        learning_rate=3e-4,
+        gamma=0.99,
+        n_steps=STEP_PER_EPISODE,
+        clip_range=0.2,
+        batch_size=64,
+    )
+    model.learn(TOTAL_TIMESTEPS, callback=callback)
+    model.save(MODEL_NAME)
+    env.save(ENV_NAME)
+    env.close()
+    print(f"Training complete. Saved model to {MODEL_NAME}.zip and normalizer to {ENV_NAME}")
+
+
+if __name__ == "__main__":
+    main()

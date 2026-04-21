@@ -10,6 +10,9 @@ from Helper import Helper
 from Dualcontrol import Dualcontrol
 from pkg_resources import parse_version
 
+from warnings import filterwarnings
+filterwarnings("ignore")
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -227,7 +230,8 @@ class Dualenv(gym.Env):
 
     def getExtendedObservation(self):
         # distance between the current pos of the hand and the target
-        dist = self.hp.distant(p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)[4], self.p_new)
+        hand_pos = self._get_hand_pos()
+        dist = self.hp.distant(hand_pos, self.p_new) if hand_pos is not None else 0.0
         #  6 dims each 36 total, normalized
         thumb_tip = ([float(i) / sum(self.observation_relatives(82)[0]) for i in self.observation_relatives(82)[0]]
                      + [float(i) / sum(self.observation_relatives(82)[1]) for i in self.observation_relatives(82)[1]])
@@ -309,7 +313,7 @@ class Dualenv(gym.Env):
                 self.object_slip = 1
                 self._observation = self.getExtendedObservation()
                 time.sleep(1)
-                return True
+            return True
         return False
 
     def _reward(self):
@@ -346,7 +350,9 @@ class Dualenv(gym.Env):
 
     def reward_s1(self):
         # convert link pos to center mass pos (palm)
-        p_hand = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)[4]
+        p_hand = self._get_hand_pos()
+        if p_hand is None:
+            return 0
         # distance reward
         dist = self.hp.distant(p_hand, self.p_new)
         reward_move = 1 / (dist + 1)  # max 1
@@ -388,16 +394,26 @@ class Dualenv(gym.Env):
     def inPos(self, error):  # the grasp location is a range
         return self.s1_x(error) and self.s1_y(error) and self.s1_z(error)
 
+    def _get_hand_pos(self):
+        link_state = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)
+        return link_state[4] if link_state is not None else None
+
     def s1_x(self, error):
-        p_hand = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)[4]
+        p_hand = self._get_hand_pos()
+        if p_hand is None:
+            return False
         return (p_hand[0] <= self.p_new[0] + error) and (p_hand[0] >= self.p_new[0] - error)
 
     def s1_y(self, error):
-        p_hand = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)[4]
+        p_hand = self._get_hand_pos()
+        if p_hand is None:
+            return False
         return (p_hand[1] <= self.p_new[1] + error) and (p_hand[1] >= self.p_new[1] - error)
 
     def s1_z(self, error):
-        p_hand = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)[4]
+        p_hand = self._get_hand_pos()
+        if p_hand is None:
+            return False
         return (p_hand[2] <= self.p_new[2] + error) and (p_hand[2] >= self.p_new[2] - error)
 
     def object_inPos(self):  # the object pos range
@@ -805,4 +821,3 @@ class Dualenv(gym.Env):
             ray_to.append(p.getLinkState(self._dual.dualUid, finger_joints[i])[4])
         # print(len(ray_from)) 4 rays
         return ray_from, ray_to
-
