@@ -1,3 +1,6 @@
 .venv_*
 *.pdf
 *.docx
+.env
+*.pkl
+*.zip

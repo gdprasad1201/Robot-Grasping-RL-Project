@@ -11,21 +11,28 @@ from Dualcontrol import Dualcontrol
 from pkg_resources import parse_version
 
 from warnings import filterwarnings
+
 filterwarnings("ignore")
 
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class Dualenv(gym.Env):
-    metadata = {'render.modes': ['human', 'rgb_array'], 'video.frames_per_second': 50}
+    metadata = {"render.modes": ["human", "rgb_array"], "video.frames_per_second": 50}
 
-    def __init__(self, urdf_root=pybullet_data.getDataPath(), action_repeat=1,
-                 is_enable_self_collision=True, renders=False,
-                 is_discrete=False, max_steps=60000):
+    def __init__(
+        self,
+        urdf_root=pybullet_data.getDataPath(),
+        action_repeat=1,
+        is_enable_self_collision=True,
+        renders=False,
+        is_discrete=False,
+        max_steps=60000,
+    ):
         self.in_pos = None
         self.move2pos_initial = None
         self.is_discrete = is_discrete
-        self._timeStep = 1. / 240
+        self._timeStep = 1.0 / 240
         self._urdfRoot = urdf_root
         self._actionRepeat = action_repeat
         self._isEnableSelfCollision = is_enable_self_collision
@@ -41,8 +48,8 @@ class Dualenv(gym.Env):
             cid = p.connect(p.SHARED_MEMORY)
             if cid < 0:
                 p.connect(p.GUI)
-            #p.resetDebugVisualizerCamera(1.5, 130, -50, [0.52, -0.2, 0.])
-            p.resetDebugVisualizerCamera(2, 45, -50, [0.52, -0.2, 0.])
+            # p.resetDebugVisualizerCamera(1.5, 130, -50, [0.52, -0.2, 0.])
+            p.resetDebugVisualizerCamera(2, 45, -50, [0.52, -0.2, 0.0])
         else:
             p.connect(p.DIRECT)
         self.hp = Helper()
@@ -53,9 +60,11 @@ class Dualenv(gym.Env):
         # observationDim = 25
         lower_observation = [-1.0] * 50
         upper_observation = [1.0] * 50
-        self.observation_space = spaces.Box(low=np.array(lower_observation, dtype=np.float64),
-                                            high=np.array(upper_observation, dtype=np.float64),
-                                            dtype=np.float64)
+        self.observation_space = spaces.Box(
+            low=np.array(lower_observation, dtype=np.float64),
+            high=np.array(upper_observation, dtype=np.float64),
+            dtype=np.float64,
+        )
         self.viewer = None
         self.seed()
         self.reset()
@@ -68,7 +77,7 @@ class Dualenv(gym.Env):
             "index": 0,
             "middle": 0,
             "ring": 0,
-            "pinky": 0
+            "pinky": 0,
         }
 
         self.terminated = 0
@@ -83,30 +92,39 @@ class Dualenv(gym.Env):
         self.move2pos_initial = 0
         p.setGravity(0, 0, -9.8)
         p.setTimeStep(self._timeStep)
-        #p.setPhysicsEngineParameter(numSolverIterations=150)
+        # p.setPhysicsEngineParameter(numSolverIterations=150)
         p.loadURDF(os.path.join(self._urdfRoot, "plane.urdf"), [0, 0, -0.15])
         self.info = self.hp.loadInfo()  # load object info from pos_all.csv
         self.index = self.info[0]  # object id
         self.grasp = self.info[8]  # grasp topology
         self.affordance = self.info[9]  # object affordance
-        self.task_id = self.info[10] #task_id
+        self.task_id = self.info[10]  # task_id
         self.fail_reason = None
         # relative pos and orn between the hand and object
-        self.p_rel, self.q_rel = self.hp.relative_pno(self.hp.p_origin, self.hp.q_origin,
-                                                      self.info[1], self.info[2])
+        self.p_rel, self.q_rel = self.hp.relative_pno(
+            self.hp.p_origin, self.hp.q_origin, self.info[1], self.info[2]
+        )
         # align link pos to center mass pos
-        self.h_p_rel, self.h_q_rel = self.hp.relative_pno(self.hp.p_palm_cm, self.hp.q_origin,
-                                                          self.hp.p_palm_lk, self.hp.q_origin)
+        self.h_p_rel, self.h_q_rel = self.hp.relative_pno(
+            self.hp.p_palm_cm, self.hp.q_origin, self.hp.p_palm_lk, self.hp.q_origin
+        )
         self.p_obj = self.info[5]  # object pos
         self.q_obj = self.info[6]  # object orientation
         angle = self.hp.rNum(self.info[3], self.info[4])  # random rotate the object
         # rotate the object round z axis by angle degree
         self.q_obj = self.hp.rotate_object(self.q_obj, angle, "z")
-        self.object = p.loadURDF(os.path.join(parent_dir, self.info[7]), self.p_obj, self.q_obj,
-                                 useFixedBase=0)  # load object
-        self.p_new, self.q_new = self.hp.calculate_rigid_trans(self.p_obj, self.q_obj, self.p_rel,
-                                                               self.q_rel)  # calculate new hand pos and orn
-        self._dual = Dualcontrol(timeStep=self._timeStep, grasp=self.grasp, object_id=self.object)
+        self.object = p.loadURDF(
+            os.path.join(parent_dir, self.info[7]),
+            self.p_obj,
+            self.q_obj,
+            useFixedBase=0,
+        )  # load object
+        self.p_new, self.q_new = self.hp.calculate_rigid_trans(
+            self.p_obj, self.q_obj, self.p_rel, self.q_rel
+        )  # calculate new hand pos and orn
+        self._dual = Dualcontrol(
+            timeStep=self._timeStep, grasp=self.grasp, object_id=self.object
+        )
         self._observation = self.getExtendedObservation()
         return np.array(self._observation)
 
@@ -120,20 +138,33 @@ class Dualenv(gym.Env):
     def step(self, action):
         d_s1 = 0.01
         d_s2 = 0.1
-        d_near = 0.003      
-        obPos, obOrn = p.getBasePositionAndOrientation(self.object)
-        self.p_new, self.q_new = self.hp.calculate_rigid_trans(obPos, obOrn, self.p_rel, self.q_rel)
+        d_near = 0.003
+        try:
+            obPos, obOrn = p.getBasePositionAndOrientation(self.object)
+        except p.error:
+            # Rarely, the object body handle can become invalid mid-rollout.
+            # End this episode gracefully so VecEnv can reset on next step.
+            self.fail_reason = "object invalid"
+            fallback_obs = (
+                np.array(self._observation)
+                if hasattr(self, "_observation")
+                else np.zeros(self.observation_space.shape, dtype=np.float64)
+            )
+            return fallback_obs, -20000, True, {}
+        self.p_new, self.q_new = self.hp.calculate_rigid_trans(
+            obPos, obOrn, self.p_rel, self.q_rel
+        )
 
         if self.inPos(self.gl_error):
             self.stage = 2
             self.in_pos = 1
         elif self.in_pos == 1 and self.inGrasp():
             self.stage = 2
-            #self.draw_rays_batch()
+            # self.draw_rays_batch()
         else:
             self.stage = 1
             self.in_pos = 0
-        #self.stage = 2
+        # self.stage = 2
         if self.stage == 2:
             j_88 = action[3] * d_s2  # index
             j_92 = action[4] * d_s2  # mid
@@ -181,14 +212,28 @@ class Dualenv(gym.Env):
         # move to initial pos and orn first
         if self.move2pos_initial == 0:
             for i in range(300):
-                self._dual.applyAction(action, self.p_new, self.q_new, self.terminated, self.stage,
-                                       self.move2pos_initial, self.pickup())
+                self._dual.applyAction(
+                    action,
+                    self.p_new,
+                    self.q_new,
+                    self.terminated,
+                    self.stage,
+                    self.move2pos_initial,
+                    self.pickup(),
+                )
                 p.stepSimulation()
             self.move2pos_initial = 1
 
         for i in range(self._actionRepeat):
-            self._dual.applyAction(action, self.p_new, self.q_new, self.terminated, self.stage,
-                                   self.move2pos_initial, self.pickup())
+            self._dual.applyAction(
+                action,
+                self.p_new,
+                self.q_new,
+                self.terminated,
+                self.stage,
+                self.move2pos_initial,
+                self.pickup(),
+            )
             p.stepSimulation()
 
             # contact = self.contactInfo(1)   # [palm, thumb, index, middle, ring, pinky]
@@ -233,28 +278,76 @@ class Dualenv(gym.Env):
         hand_pos = self._get_hand_pos()
         dist = self.hp.distant(hand_pos, self.p_new) if hand_pos is not None else 0.0
         #  6 dims each 36 total, normalized
-        thumb_tip = ([float(i) / sum(self.observation_relatives(82)[0]) for i in self.observation_relatives(82)[0]]
-                     + [float(i) / sum(self.observation_relatives(82)[1]) for i in self.observation_relatives(82)[1]])
-        index_tip = ([float(i) / sum(self.observation_relatives(89)[0]) for i in self.observation_relatives(89)[0]]
-                     + [float(i) / sum(self.observation_relatives(89)[1]) for i in self.observation_relatives(89)[1]])
-        middle_tip = ([float(i) / sum(self.observation_relatives(93)[0]) for i in self.observation_relatives(93)[0]]
-                      + [float(i) / sum(self.observation_relatives(93)[1]) for i in self.observation_relatives(93)[1]])
-        ring_tip = ([float(i) / sum(self.observation_relatives(57)[0]) for i in self.observation_relatives(57)[0]]
-                    + [float(i) / sum(self.observation_relatives(57)[1]) for i in self.observation_relatives(57)[1]])
-        pinky_tip = ([float(i) / sum(self.observation_relatives(53)[0]) for i in self.observation_relatives(53)[0]]
-                     + [float(i) / sum(self.observation_relatives(53)[1]) for i in self.observation_relatives(53)[1]])
-        palm_relatives = ([float(i) / sum(self.observation_relatives(self.hp.dualEndEffectorIndex)[0])
-                           for i in self.observation_relatives(self.hp.dualEndEffectorIndex)[0]]
-                          + [float(i) / sum(self.observation_relatives(self.hp.dualEndEffectorIndex)[1])
-                             for i in self.observation_relatives(self.hp.dualEndEffectorIndex)[1]])
+        thumb_tip = [
+            float(i) / sum(self.observation_relatives(82)[0])
+            for i in self.observation_relatives(82)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(82)[1])
+            for i in self.observation_relatives(82)[1]
+        ]
+        index_tip = [
+            float(i) / sum(self.observation_relatives(89)[0])
+            for i in self.observation_relatives(89)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(89)[1])
+            for i in self.observation_relatives(89)[1]
+        ]
+        middle_tip = [
+            float(i) / sum(self.observation_relatives(93)[0])
+            for i in self.observation_relatives(93)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(93)[1])
+            for i in self.observation_relatives(93)[1]
+        ]
+        ring_tip = [
+            float(i) / sum(self.observation_relatives(57)[0])
+            for i in self.observation_relatives(57)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(57)[1])
+            for i in self.observation_relatives(57)[1]
+        ]
+        pinky_tip = [
+            float(i) / sum(self.observation_relatives(53)[0])
+            for i in self.observation_relatives(53)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(53)[1])
+            for i in self.observation_relatives(53)[1]
+        ]
+        palm_relatives = [
+            float(i) / sum(self.observation_relatives(self.hp.dualEndEffectorIndex)[0])
+            for i in self.observation_relatives(self.hp.dualEndEffectorIndex)[0]
+        ] + [
+            float(i) / sum(self.observation_relatives(self.hp.dualEndEffectorIndex)[1])
+            for i in self.observation_relatives(self.hp.dualEndEffectorIndex)[1]
+        ]
 
-        in_pos_gl = [self.s1_x(self.gl_error), self.s1_y(self.gl_error), self.s1_z(self.gl_error)]
-        in_pos_near = [self.s1_x(self.near_error), self.s1_y(self.near_error), self.s1_z(self.near_error)]
-        #in_pos = [self.pickup(), self.inGrasp()]
+        in_pos_gl = [
+            self.s1_x(self.gl_error),
+            self.s1_y(self.gl_error),
+            self.s1_z(self.gl_error),
+        ]
+        in_pos_near = [
+            self.s1_x(self.near_error),
+            self.s1_y(self.near_error),
+            self.s1_z(self.near_error),
+        ]
+        # in_pos = [self.pickup(), self.inGrasp()]
         o_cone = [self.in_friction_cone()]
         force, torque = self.check_equilibrium()
-        self._observation = (palm_relatives + thumb_tip + index_tip + middle_tip + ring_tip + pinky_tip + [dist]
-                             + o_cone + in_pos_gl + in_pos_near + force.tolist() + torque.tolist())
+        self._observation = (
+            palm_relatives
+            + thumb_tip
+            + index_tip
+            + middle_tip
+            + ring_tip
+            + pinky_tip
+            + [dist]
+            + o_cone
+            + in_pos_gl
+            + in_pos_near
+            + force.tolist()
+            + torque.tolist()
+        )
 
         return self._observation
 
@@ -277,8 +370,15 @@ class Dualenv(gym.Env):
         if self.grasp == "platform" and self.stage == 2:
             self.terminated = 2
             for i in range(300):
-                self._dual.applyAction(action, self.p_new, self.q_new, self.terminated, self.stage,
-                                       self.move2pos_initial, self.pickup())
+                self._dual.applyAction(
+                    action,
+                    self.p_new,
+                    self.q_new,
+                    self.terminated,
+                    self.stage,
+                    self.move2pos_initial,
+                    self.pickup(),
+                )
                 p.stepSimulation()
                 contact = self.contactInfo(1)
                 if sum(contact) > 0:
@@ -297,11 +397,18 @@ class Dualenv(gym.Env):
         if self.inGrasp() and self.pickup() and self.stage == 2:
             self.terminated = 1
             for i in range(1000):
-                self._dual.applyAction(action, self.p_new, self.q_new, self.terminated, self.stage,
-                                       self.move2pos_initial, self.pickup())
+                self._dual.applyAction(
+                    action,
+                    self.p_new,
+                    self.q_new,
+                    self.terminated,
+                    self.stage,
+                    self.move2pos_initial,
+                    self.pickup(),
+                )
                 p.stepSimulation()
                 objectPosCurrent = p.getBasePositionAndOrientation(self.object)[0]
-                #print(objectPosCurrent[2])
+                # print(objectPosCurrent[2])
                 if objectPosCurrent[2] > self.p_obj[2] + 0.08:
                     self._graspSuccess = 1
                     self._observation = self.getExtendedObservation()
@@ -324,7 +431,7 @@ class Dualenv(gym.Env):
             self.in_pos = 1
         elif self.in_pos == 1 and self.inGrasp():
             self.stage = 2
-            #self.draw_rays_batch()
+            # self.draw_rays_batch()
         else:
             self.stage = 1
             self.in_pos = 0
@@ -335,12 +442,12 @@ class Dualenv(gym.Env):
             reward = reward_s1
         return reward
 
-    def render(self, mode='human', close=False):
+    def render(self, mode="human", close=False):
         if mode != "rgb_array":
             return np.array([])
         return self.getExtendedObservation()
 
-    if parse_version(gym.__version__) < parse_version('0.9.6'):
+    if parse_version(gym.__version__) < parse_version("0.9.6"):
         _render = render
         _reset = reset
         _seed = seed
@@ -362,11 +469,13 @@ class Dualenv(gym.Env):
         initial_direction = np.array(self.p_new) - np.array(self.hp.endEffectorPos)
         current_direction = np.array(p_hand) - np.array(self.hp.endEffectorPos)
         # Calculate cosine similarity
-        reward_direct = self.hp.calculate_direction(initial_direction, current_direction)  # [-0.5, 0.5]
+        reward_direct = self.hp.calculate_direction(
+            initial_direction, current_direction
+        )  # [-0.5, 0.5]
 
         # collision penalty
         # get contact information
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
         contact_num = len(contact_points)
         reward_collision = contact_num if contact_num > 0 else 0
         # overall stage 1 reward
@@ -384,11 +493,13 @@ class Dualenv(gym.Env):
 
     def reward_s2(self):
         # get contact information
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
         force, torque = self.check_equilibrium()
 
-        contact_num = len(contact_points)*2 + 1 / (sum(force) + 1) + 1 / (sum(torque) + 1)
-        #print("reward2: ", len(contact_points), contact_num)
+        contact_num = (
+            len(contact_points) * 2 + 1 / (sum(force) + 1) + 1 / (sum(torque) + 1)
+        )
+        # print("reward2: ", len(contact_points), contact_num)
         return contact_num
 
     def inPos(self, error):  # the grasp location is a range
@@ -398,23 +509,33 @@ class Dualenv(gym.Env):
         link_state = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)
         return link_state[4] if link_state is not None else None
 
+    def _get_hand_object_contacts(self):
+        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        return contact_points if contact_points is not None else ()
+
     def s1_x(self, error):
         p_hand = self._get_hand_pos()
         if p_hand is None:
             return False
-        return (p_hand[0] <= self.p_new[0] + error) and (p_hand[0] >= self.p_new[0] - error)
+        return (p_hand[0] <= self.p_new[0] + error) and (
+            p_hand[0] >= self.p_new[0] - error
+        )
 
     def s1_y(self, error):
         p_hand = self._get_hand_pos()
         if p_hand is None:
             return False
-        return (p_hand[1] <= self.p_new[1] + error) and (p_hand[1] >= self.p_new[1] - error)
+        return (p_hand[1] <= self.p_new[1] + error) and (
+            p_hand[1] >= self.p_new[1] - error
+        )
 
     def s1_z(self, error):
         p_hand = self._get_hand_pos()
         if p_hand is None:
             return False
-        return (p_hand[2] <= self.p_new[2] + error) and (p_hand[2] >= self.p_new[2] - error)
+        return (p_hand[2] <= self.p_new[2] + error) and (
+            p_hand[2] >= self.p_new[2] - error
+        )
 
     def object_inPos(self):  # the object pos range
         obPos, _ = p.getBasePositionAndOrientation(self.object)
@@ -427,7 +548,7 @@ class Dualenv(gym.Env):
 
     def pickup(self):
         contact = self.contactInfo(300)
-        #print(contact)
+        # print(contact)
         if self.grasp is None:
             return False
         if self.grasp == "inSiAd2":
@@ -453,7 +574,7 @@ class Dualenv(gym.Env):
         ringLinks = self.hp.ringLinks
         pinkyLinks = self.hp.pinkyLinks
         # get contact information
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
         contact_num = len(contact_points)
 
         # find contact_points point
@@ -467,12 +588,12 @@ class Dualenv(gym.Env):
                 if contact_points[i][3] in thumbLinks:
                     if contact_points[i][9] >= limitForce:
                         contactParts[1] = 1
-                #print("thumb", contact_points[i][9] )
+                # print("thumb", contact_points[i][9] )
 
                 if contact_points[i][3] in indexLinks:
                     if contact_points[i][9] >= limitForce:
                         contactParts[2] = 1
-                #print("index", contact_points[i][9] )
+                # print("index", contact_points[i][9] )
                 if contact_points[i][3] in middleLinks:
                     if contact_points[i][9] >= limitForce:
                         contactParts[3] = 1
@@ -509,11 +630,21 @@ class Dualenv(gym.Env):
         ray_readings = p.rayTestBatch(ray_from, ray_to)
         for i in range(len(ray_readings)):
             if ray_readings[i][0] != self.object:  # no collision
-                p.addUserDebugLine(ray_from[i], list(ray_readings[i][3]), miss_color,
-                                   lifeTime=life_time, lineWidth=line_width)
+                p.addUserDebugLine(
+                    ray_from[i],
+                    list(ray_readings[i][3]),
+                    miss_color,
+                    lifeTime=life_time,
+                    lineWidth=line_width,
+                )
             else:  # collision
-                p.addUserDebugLine(ray_from[i], list(ray_readings[i][3]), hit_color,
-                                   lifeTime=life_time, lineWidth=line_width)
+                p.addUserDebugLine(
+                    ray_from[i],
+                    list(ray_readings[i][3]),
+                    hit_color,
+                    lifeTime=life_time,
+                    lineWidth=line_width,
+                )
 
     def setup_rays_positions_12(self):  # 12 rays
         # pair 2 list without duplication
@@ -543,7 +674,7 @@ class Dualenv(gym.Env):
 
         force_total = np.array([0, 0, 0], dtype=np.float64)
         torque_total = np.array([0, 0, 0], dtype=np.float64)
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
         if len(contact_points) > 0:
             for contact in contact_points:
                 # position vecc for torque
@@ -572,9 +703,11 @@ class Dualenv(gym.Env):
                 torque_total += np.cross(c_com, lateral_2)
             return force_total, torque_total
         else:
-            return (np.array([3.3, 3.3, 3.3], dtype=np.float64),
-                    np.array([3.3, 3.3, 3.3], dtype=np.float64))
-        
+            return (
+                np.array([3.3, 3.3, 3.3], dtype=np.float64),
+                np.array([3.3, 3.3, 3.3], dtype=np.float64),
+            )
+
     def get_finger_contact_forces(self, print_result=True):
         """
         Compute and optionally print contact force of each finger on the object.
@@ -610,7 +743,7 @@ class Dualenv(gym.Env):
             "pinky": np.zeros(3, dtype=np.float64),
         }
 
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
 
         for contact in contact_points:
             link_idx = contact[3]  # linkIndexA, hand link
@@ -654,16 +787,18 @@ class Dualenv(gym.Env):
                 )
 
         return finger_forces, finger_force_magnitudes
-    
+
     def print_finger_forces_on_new_contact(self, threshold=1):
-        contact = self.contactInfo(threshold)   # [palm, thumb, index, middle, ring, pinky]
+        contact = self.contactInfo(
+            threshold
+        )  # [palm, thumb, index, middle, ring, pinky]
 
         current_state = {
             "thumb": contact[1],
             "index": contact[2],
             "middle": contact[3],
             "ring": contact[4],
-            "pinky": contact[5]
+            "pinky": contact[5],
         }
 
         # print only when any finger changes from 0 -> 1
@@ -687,16 +822,20 @@ class Dualenv(gym.Env):
         bool: True if all contact forces are within the friction cone, False otherwise.
         """
         # Get all contact points between the two bodies
-        contact_points = p.getContactPoints(self._dual.dualUid, self.object)
+        contact_points = self._get_hand_object_contacts()
         for contact in contact_points:
             # Extract normal force (force along the contact normal)
             normal_force = contact[9]  # index 9 is normal force in contact information
             # Extract lateral forces
-            lateral_friction1 = contact[10]  # Lateral friction force along the first direction
-            lateral_friction2 = contact[12]  # Lateral friction force along the second direction
+            lateral_friction1 = contact[
+                10
+            ]  # Lateral friction force along the first direction
+            lateral_friction2 = contact[
+                12
+            ]  # Lateral friction force along the second direction
 
             # Compute the tangential (lateral) force magnitude
-            tangential_force = np.sqrt(lateral_friction1 ** 2 + lateral_friction2 ** 2)
+            tangential_force = np.sqrt(lateral_friction1**2 + lateral_friction2**2)
 
             # Check if the tangential force is within the friction cone
             if tangential_force > friction_coefficient * normal_force:
@@ -709,7 +848,7 @@ class Dualenv(gym.Env):
 
     def pickup1(self):
         contact = self.contactInfo(30)
-        #print(contact)
+        # print(contact)
         if self.grasp is None:
             return False
         if self.grasp == "inSiAd2":
@@ -719,13 +858,23 @@ class Dualenv(gym.Env):
         if self.grasp == "pPdAb23":
             return contact[1] == 1 and contact[2] == 1 and contact[3] == 1
         if self.grasp == "pPdAb25":
-            return (contact[1] == 1 and contact[2] == 1 and contact[3] == 1
-                    and contact[4] == 1 )
+            return (
+                contact[1] == 1
+                and contact[2] == 1
+                and contact[3] == 1
+                and contact[4] == 1
+            )
         if self.grasp == "poPmAb25":
             # return (contact[0] == 1 and contact[1] == 1 and contact[2] == 1
             #         and contact[3] == 1 and contact[4] == 1 and contact[5] == 1)
-            return (contact[0] == 1 and contact[1] == 1 and contact[2] == 1
-                    and contact[3] == 1 and contact[4] == 1 and contact[5] == 1)
+            return (
+                contact[0] == 1
+                and contact[1] == 1
+                and contact[2] == 1
+                and contact[3] == 1
+                and contact[4] == 1
+                and contact[5] == 1
+            )
 
     def get_joint_pos(self, jointId):
         return p.getJointState(self._dual.dualUid, jointId)[0]
@@ -736,25 +885,41 @@ class Dualenv(gym.Env):
         hit_color = [1, 0, 0]  # blue
         ray_readings = p.rayTest(ray_from, ray_to)
         if ray_readings[0][2] > 0.9:  # no collision
-            p.addUserDebugLine(ray_from, ray_readings[0][3], miss_color, lifeTime=1 / 240, lineWidth=3,
-                               replaceItemUniqueId=p.addUserDebugLine(ray_from, ray_readings[0][3],
-                                                                      hit_color, lineWidth=30))
+            p.addUserDebugLine(
+                ray_from,
+                ray_readings[0][3],
+                miss_color,
+                lifeTime=1 / 240,
+                lineWidth=3,
+                replaceItemUniqueId=p.addUserDebugLine(
+                    ray_from, ray_readings[0][3], hit_color, lineWidth=30
+                ),
+            )
         else:  # collision
-            p.addUserDebugLine(ray_from, ray_readings[0][3], hit_color, lifeTime=1 / 240, lineWidth=3,
-                               replaceItemUniqueId=p.addUserDebugLine(ray_from, ray_readings[0][3],
-                                                                      miss_color, lineWidth=3))
+            p.addUserDebugLine(
+                ray_from,
+                ray_readings[0][3],
+                hit_color,
+                lifeTime=1 / 240,
+                lineWidth=3,
+                replaceItemUniqueId=p.addUserDebugLine(
+                    ray_from, ray_readings[0][3], miss_color, lineWidth=3
+                ),
+            )
 
     def get_contactInfo(self, bodyA, bodyB):
         # get all contact info between 2 bodies
         # detailed info about this function can be
         # found in pybullet guide (function getContactPoints)
-        return p.getContactPoints(bodyA, bodyB)
+        contact_points = p.getContactPoints(bodyA, bodyB)
+        return contact_points if contact_points is not None else ()
 
     def get_link_contactInfo(self, bodyA, bodyB, linkA, LinkB):
         # get contact info between 2 links
         # detailed info about this function can be
         # found in pybullet guide (function getContactPoints)
-        return p.getContactPoints(bodyA, bodyB, linkA, LinkB)
+        contact_points = p.getContactPoints(bodyA, bodyB, linkA, LinkB)
+        return contact_points if contact_points is not None else ()
 
     def closest_point(self, bodyA, bodyB, distance, linkA, LinkB):
         # return the closest point info between 2 links of 2 bodies
@@ -773,15 +938,27 @@ class Dualenv(gym.Env):
         ray_readings = p.rayTestBatch(ray_from, ray_to)
         for i in range(len(ray_readings)):
             if ray_readings[i][0] != self.object:  # no collision
-                p.addUserDebugLine(ray_from[i], list(ray_readings[i][3]), miss_color, lifeTime=1 / 120,
-                                   lineWidth=3, replaceItemUniqueId=p.addUserDebugLine(ray_from[i],
-                                                                                       list(ray_readings[i][3]),
-                                                                                       hit_color, lineWidth=3))
+                p.addUserDebugLine(
+                    ray_from[i],
+                    list(ray_readings[i][3]),
+                    miss_color,
+                    lifeTime=1 / 120,
+                    lineWidth=3,
+                    replaceItemUniqueId=p.addUserDebugLine(
+                        ray_from[i], list(ray_readings[i][3]), hit_color, lineWidth=3
+                    ),
+                )
             else:  # collision
-                p.addUserDebugLine(ray_from[i], list(ray_readings[i][3]), hit_color, lifeTime=1 / 120,
-                                   lineWidth=3, replaceItemUniqueId=p.addUserDebugLine(ray_from[i],
-                                                                                       list(ray_readings[i][3]),
-                                                                                       miss_color, lineWidth=3))
+                p.addUserDebugLine(
+                    ray_from[i],
+                    list(ray_readings[i][3]),
+                    hit_color,
+                    lifeTime=1 / 120,
+                    lineWidth=3,
+                    replaceItemUniqueId=p.addUserDebugLine(
+                        ray_from[i], list(ray_readings[i][3]), miss_color, lineWidth=3
+                    ),
+                )
 
     def setup_rays_positions_allpairs(self):
         # pair 2 list without duplication
