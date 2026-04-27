@@ -270,8 +270,19 @@ class Dualenv(gym.Env):
             done = True
         else:
             done = self._termination(action)
-        self._observation = self.getExtendedObservation()
-        return np.array(self._observation), reward, done, {}
+        try:
+            self._observation = self.getExtendedObservation()
+            return np.array(self._observation), reward, done, {}
+        except p.error:
+            # Rarely, robot link handles can become invalid mid-rollout.
+            # End this episode cleanly so VecEnv can continue.
+            self.fail_reason = "hand invalid"
+            fallback_obs = (
+                np.array(self._observation)
+                if hasattr(self, "_observation")
+                else np.zeros(self.observation_space.shape, dtype=np.float64)
+            )
+            return fallback_obs, reward - 20000, True, {}
 
     def getExtendedObservation(self):
         # distance between the current pos of the hand and the target
@@ -407,7 +418,11 @@ class Dualenv(gym.Env):
                     self.pickup(),
                 )
                 p.stepSimulation()
-                objectPosCurrent = p.getBasePositionAndOrientation(self.object)[0]
+                object_state = self._get_object_pos_orn()
+                if object_state is None:
+                    print(self.task_id, " Terminated: object handle invalid")
+                    return True
+                objectPosCurrent = object_state[0]
                 # print(objectPosCurrent[2])
                 if objectPosCurrent[2] > self.p_obj[2] + 0.08:
                     self._graspSuccess = 1
@@ -506,8 +521,19 @@ class Dualenv(gym.Env):
         return self.s1_x(error) and self.s1_y(error) and self.s1_z(error)
 
     def _get_hand_pos(self):
-        link_state = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)
-        return link_state[4] if link_state is not None else None
+        try:
+            link_state = p.getLinkState(self._dual.dualUid, self.hp.dualEndEffectorIndex)
+            return link_state[4] if link_state is not None else None
+        except p.error:
+            self.fail_reason = "hand invalid"
+            return None
+
+    def _get_object_pos_orn(self):
+        try:
+            return p.getBasePositionAndOrientation(self.object)
+        except p.error:
+            self.fail_reason = "object invalid"
+            return None
 
     def _get_hand_object_contacts(self):
         contact_points = p.getContactPoints(self._dual.dualUid, self.object)
@@ -538,7 +564,10 @@ class Dualenv(gym.Env):
         )
 
     def object_inPos(self):  # the object pos range
-        obPos, _ = p.getBasePositionAndOrientation(self.object)
+        object_state = self._get_object_pos_orn()
+        if object_state is None:
+            return False
+        obPos, _ = object_state
         x = (obPos[0] >= 0.72) and (obPos[0] <= 0.84)
         y = (obPos[1] >= -0.51) and (obPos[1] <= -0.40)
         return x and y
@@ -676,10 +705,12 @@ class Dualenv(gym.Env):
         torque_total = np.array([0, 0, 0], dtype=np.float64)
         contact_points = self._get_hand_object_contacts()
         if len(contact_points) > 0:
+            object_state = self._get_object_pos_orn()
+            if object_state is None:
+                return force_total, torque_total
+            object_com_position = np.array(object_state[0])
             for contact in contact_points:
                 # position vecc for torque
-                object_com_position, _ = p.getBasePositionAndOrientation(self.object)
-                object_com_position = np.array(object_com_position)
                 contact_pos = np.array(contact[6], dtype=np.float64)
                 c_com = contact_pos - object_com_position
                 # forces and directions
